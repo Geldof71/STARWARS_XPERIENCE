@@ -62,6 +62,7 @@
       <label class="tg"><input type="checkbox" id="tLabels" checked> Namen van hallen</label>
       <label class="tg"><input type="checkbox" id="tPlan"> Voorstel indeling Xperience</label>
       <div class="legend" id="legend"></div>
+      <label class="tg"><input type="checkbox" id="tFps"> Beeldsnelheid tonen (FPS)</label>
     </div>
 
     <div class="sect">
@@ -186,9 +187,11 @@ for (const e of ENTS){ R[e.r].open[e.s].push({c:e.at, w:10, h:Math.min(6,R[e.r].
 /* ---------- three ---------- */
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
+renderer.xr.setFramebufferScaleFactor(0.8);
+renderer.xr.setFoveation(1);
 renderer.shadowMap.enabled = false;
 stage.appendChild(renderer.domElement);
 
@@ -402,10 +405,28 @@ mini.addEventListener('click',e=>{
 });
 function roomAt(x,z){ for (const k in R){ const r=R[k]; if(x>=r.x[0]&&x<=r.x[1]&&z>=r.z[0]&&z<=r.z[1]) return (r.n||R.h5a.n); } return 'Buiten'; }
 
+/* ---------- FPS meter (ook zichtbaar in de bril) ---------- */
+const tFps=document.getElementById('tFps');
+const fpsCan=document.createElement('canvas'); fpsCan.width=256; fpsCan.height=96;
+const fpsTex=new THREE.CanvasTexture(fpsCan); fpsTex.colorSpace=THREE.SRGBColorSpace;
+const fpsSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:fpsTex, depthTest:false, transparent:true}));
+fpsSprite.renderOrder=20; fpsSprite.scale.set(0.24,0.09,1); fpsSprite.position.set(0.18,-0.16,-0.6); fpsSprite.visible=false; camera.add(fpsSprite);
+let fpsFrames=0, fpsT=0, fpsVal=0;
+function drawFps(){
+  const g=fpsCan.getContext('2d'); g.clearRect(0,0,256,96);
+  g.fillStyle='rgba(29,34,40,0.85)'; g.beginPath(); g.roundRect(0,0,256,96,16); g.fill();
+  g.fillStyle = fpsVal>=68 ? '#5fd38a' : fpsVal>=50 ? '#f0c04a' : '#ff6b6b';
+  g.font='700 52px Saira, system-ui, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(fpsVal+' FPS',128,50);
+  fpsTex.needsUpdate=true;
+}
+tFps.onchange=()=>{ fpsSprite.visible=tFps.checked; if(!tFps.checked) where.dataset.fps=''; };
+
 /* ---------- loop ---------- */
 const clock=new THREE.Clock(); let miniT=0;
 renderer.setAnimationLoop(()=>{
   const dt=Math.min(clock.getDelta(),0.1);
+  fpsFrames++; fpsT+=dt;
+  if (fpsT>=0.5){ fpsVal=Math.round(fpsFrames/fpsT); fpsFrames=0; fpsT=0; if(tFps.checked){ drawFps(); where.dataset.fps=' · '+fpsVal+' FPS'; } }
   if (renderer.xr.isPresenting){
     xrSticks(dt);
     let hit=null; for(const c of ctrls){ hit=castFrom(c)||hit; }
@@ -416,7 +437,9 @@ renderer.setAnimationLoop(()=>{
     const s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
     if (f||s){ rig.position.x += (-Math.sin(yaw)*f + Math.cos(yaw)*s)*sp; rig.position.z += (-Math.cos(yaw)*f - Math.sin(yaw)*s)*sp; }
   } else orbit.update();
-  if ((miniT+=dt)>0.1){ miniT=0; drawMini(); if(mode==='walk') where.textContent=roomAt(rig.position.x,rig.position.z); }
+  if (!renderer.xr.isPresenting && (miniT+=dt)>0.15){ miniT=0; drawMini();
+    const base = mode==='walk' ? roomAt(rig.position.x,rig.position.z) : 'Overzicht';
+    where.textContent = base + (tFps.checked ? '  '+fpsVal+' FPS' : ''); }
   renderer.render(scene,camera);
 });
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
