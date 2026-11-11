@@ -445,7 +445,7 @@ function addLabels(){
     const big = r.t==='hal';
     const s=textSprite(r.n, r.m2 ? r.m2.toLocaleString('nl-NL')+' m²' : null);
     const W = big ? 34 : 20; s.scale.set(W, W/s.userData.aspect, 1);
-    s.position.set(r.cx, r.h+8, r.cz); labelGroup.add(s);
+    s.position.set(r.cx, (k==='h1'?APEX:r.h)+8, r.cz); labelGroup.add(s);
   }
   for (const e of ENTS){
     const r=R[e.r]; const p=edgePoint(r,e.s,e.at,4);
